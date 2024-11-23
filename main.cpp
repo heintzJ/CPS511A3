@@ -9,6 +9,9 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include "sackbot.h"
+
+Sackbot sackbot;
 
 GLdouble worldLeft = -12;
 GLdouble worldRight = 12;
@@ -28,7 +31,6 @@ GLint viewportHeight = glutWindowHeight;
 
 // screen window identifiers
 int window3D;
-
 int window3DSizeX = 800, window3DSizeY = 600;
 GLdouble aspect = (GLdouble)window3DSizeX / window3DSizeY;
 
@@ -40,7 +42,7 @@ int main(int argc, char* argv[])
 	glutInitWindowPosition(50, 100);
 
 	// The 3D Window
-	window3D = glutCreateWindow("Surface of Revolution");
+	window3D = glutCreateWindow("Sackbot Attack");
 	glutPositionWindow(900, 100);
 	glewInit();
 	glutDisplayFunc(display3D);
@@ -50,7 +52,11 @@ int main(int argc, char* argv[])
 	glutKeyboardFunc(keyboardHandler3D);
 	// Initialize the 3D system
 	init3DSurfaceWindow();
+
+	sackbot.position(0.0f, -5.0f, 0.0f);
+	sackbot.scaleRobot(0.5, 0.5, 0.5);
 	// Annnd... ACTION!!
+	
 	glutMainLoop();
 
 	return 0;
@@ -217,6 +223,8 @@ void display3D()
 	loadModel();
 	loadedMesh->Draw();
 
+	sackbot.drawRobot();
+
 	glutSwapBuffers();
 }
 
@@ -302,6 +310,15 @@ void loadModel()
 	loadedMesh = new Mesh(vertices, indices);
 }
 
+float newY;
+void robotMovement(int param)
+{
+	newY += 0.1f;
+	sackbot.position(0.0f, newY, 0.0f);
+	glutPostRedisplay();
+	glutTimerFunc(24, robotMovement, 0);
+}
+
 int currentButton;
 
 void mouseScrollWheelHandler3D(int button, int dir, int xMouse, int yMouse)
@@ -344,7 +361,7 @@ void mouseMotionHandler3D(int x, int y)
 		eyeX = cos(theta) * radius;
 		eyeZ = sin(theta) * radius;
 	}
-	if (currentButton == GLUT_RIGHT_BUTTON)
+	else if (currentButton == GLUT_RIGHT_BUTTON)
 	{
 		phi += dy * 0.01f;
 		if (eyeY > 60) {
@@ -359,10 +376,6 @@ void mouseMotionHandler3D(int x, int y)
 			
 		}
 	}
-	else if (currentButton == GLUT_MIDDLE_BUTTON)
-	{
-		// Fill in this code for zooming or ignore and use the scroll wheel
-	}
 	lastMouseX = x;
 	lastMouseY = y;
 	glutPostRedisplay();
@@ -370,17 +383,16 @@ void mouseMotionHandler3D(int x, int y)
 
 void keyboardHandler3D(unsigned char key, int x, int y)
 {
-
 	switch (key)
 	{
 	case 'q':
-	case 'Q':
-	case 27:
-		// Esc, q, or Q key = Quit 
 		exit(0);
 		break;
-	default:
+	case 'Q':
+		exit(0);
 		break;
+	case 'w':
+		glutTimerFunc(24, robotMovement, 0);
 	}
 	glutPostRedisplay();
 }

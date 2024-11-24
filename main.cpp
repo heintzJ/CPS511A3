@@ -10,8 +10,10 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "sackbot.h"
+#include <random>
 
 Sackbot sackbot;
+std::vector<Sackbot> sackbots;
 
 GLdouble worldLeft = -12;
 GLdouble worldRight = 12;
@@ -317,6 +319,21 @@ void robotMovement(int param)
 	sackbot.position(0.0f, newY, 0.0f);
 	glutPostRedisplay();
 	glutTimerFunc(24, robotMovement, 0);
+}
+
+void spawnSackbots()
+{
+	Sackbot sackbot;
+	// get a random number between -10 and 10
+	std::random_device seed;
+	std::mt19937 gen{ seed() };
+	std::uniform_int_distribution<> dist{ -10,10 };
+	float x = dist(gen);
+	float y = 0.0f;
+	float z = -10.0f;
+	sackbot.position(x, y, z);
+	sackbot.robotVelocity(0.0f, 0.1f, 0.0f);
+	sackbots.push_back(sackbot);
 }
 
 int currentButton;

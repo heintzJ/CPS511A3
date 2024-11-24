@@ -438,6 +438,13 @@ void Sackbot::scaleRobot(float x, float y, float z)
 	scaleZ = z;
 }
 
+void Sackbot::robotVelocity(float x, float y, float z)
+{
+	vx = x;
+	vy = y;
+	vz = z;
+}
+
 void rotateCannon(int param)
 {
 	if (cannonRotation)

@@ -12,7 +12,6 @@
 #include "sackbot.h"
 #include <random>
 
-Sackbot sackbot;
 std::vector<Sackbot> sackbots;
 
 GLdouble worldLeft = -12;
@@ -35,34 +34,6 @@ GLint viewportHeight = glutWindowHeight;
 int window3D;
 int window3DSizeX = 800, window3DSizeY = 600;
 GLdouble aspect = (GLdouble)window3DSizeX / window3DSizeY;
-
-int main(int argc, char* argv[])
-{
-	glutInit(&argc, (char**)argv);
-	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-	glutInitWindowSize(glutWindowWidth, glutWindowHeight);
-	glutInitWindowPosition(50, 100);
-
-	// The 3D Window
-	window3D = glutCreateWindow("Sackbot Attack");
-	glutPositionWindow(900, 100);
-	glewInit();
-	glutDisplayFunc(display3D);
-	glutReshapeFunc(reshape3D);
-	glutMouseWheelFunc(mouseScrollWheelHandler3D);
-	glutMotionFunc(mouseMotionHandler3D);
-	glutKeyboardFunc(keyboardHandler3D);
-	// Initialize the 3D system
-	init3DSurfaceWindow();
-
-	sackbot.position(0.0f, -5.0f, 0.0f);
-	sackbot.scaleRobot(0.5, 0.5, 0.5);
-	// Annnd... ACTION!!
-	
-	glutMainLoop();
-
-	return 0;
-}
 
 // Ground Mesh material
 GLfloat groundMat_ambient[] = { 0.4, 0.4, 0.4, 1.0 };
@@ -157,7 +128,7 @@ GLdouble fov = 60.0;
 int lastMouseX;
 int lastMouseY;
 
-GLdouble eyeX = 0.0, eyeY = 3.0, eyeZ = 10.0;
+GLdouble eyeX = 0.0, eyeY = 0.0, eyeZ = 22.0;
 GLdouble radius = eyeZ;
 GLdouble zNear = 0.1, zFar = 40.0;
 
@@ -222,10 +193,13 @@ void display3D()
 
 	drawGround();
 
-	loadModel();
-	loadedMesh->Draw();
+	//loadModel();
+	//loadedMesh->Draw();
 
-	sackbot.drawRobot();
+	for (auto& sackbot : sackbots)
+	{
+		sackbot.drawRobot();
+	}
 
 	glutSwapBuffers();
 }
@@ -312,28 +286,62 @@ void loadModel()
 	loadedMesh = new Mesh(vertices, indices);
 }
 
-float newY;
-void robotMovement(int param)
-{
-	newY += 0.1f;
-	sackbot.position(0.0f, newY, 0.0f);
-	glutPostRedisplay();
-	glutTimerFunc(24, robotMovement, 0);
-}
-
-void spawnSackbots()
+// this will initialize the variables needed by a sackbot object
+// we then use these variables in display3D() to render the sackbot
+void spawnSackbot()
 {
 	Sackbot sackbot;
 	// get a random number between -10 and 10
 	std::random_device seed;
 	std::mt19937 gen{ seed() };
 	std::uniform_int_distribution<> dist{ -10,10 };
+	// spawn the robot somewhere on the x axis and 10 units away
 	float x = dist(gen);
 	float y = 0.0f;
-	float z = -10.0f;
+	float z = -22.0f; // edge of ground
 	sackbot.position(x, y, z);
-	sackbot.robotVelocity(0.0f, 0.1f, 0.0f);
+	sackbot.robotVelocity(0.0f, 0.0f, 0.1f);
+	sackbot.scaleRobot(0.5f, 0.5f, 0.5f);
 	sackbots.push_back(sackbot);
+	std::cout << "Spawned sackbot" << std::endl;
+
+}
+
+// this takes a sackbot from the sackbots vector and gives it the 
+float spawnInterval = 2.0f;
+float timeSinceLastSpawn = 0.0f;
+float deltaTime = 0.024f;
+void spawner()
+{
+	timeSinceLastSpawn += deltaTime;
+	
+	// if the timer interval is enough, spawn a new sackbot
+	if (timeSinceLastSpawn >= spawnInterval) {
+		spawnSackbot();
+		timeSinceLastSpawn = 0.0f;
+	}
+
+	// always update the positions of current sackbots
+	for (auto& sackbot : sackbots)
+	{
+		sackbot.move();
+	}
+
+	// remove robots that pass the camera
+	sackbots.erase(
+		std::remove_if(sackbots.begin(), sackbots.end(), [](Sackbot& sackbot) {
+			return sackbot.currentZ() > 5.0f;
+			}),
+		sackbots.end()
+	);
+
+	glutPostRedisplay();
+}
+
+// spawn a sack bot every 24ms
+void gameLoop(int value) {
+	spawner();
+	glutTimerFunc(24, gameLoop, 0);
 }
 
 int currentButton;
@@ -408,8 +416,32 @@ void keyboardHandler3D(unsigned char key, int x, int y)
 	case 'Q':
 		exit(0);
 		break;
-	case 'w':
-		glutTimerFunc(24, robotMovement, 0);
 	}
 	glutPostRedisplay();
+}
+
+int main(int argc, char* argv[])
+{
+	glutInit(&argc, (char**)argv);
+	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	glutInitWindowSize(glutWindowWidth, glutWindowHeight);
+	glutInitWindowPosition(50, 100);
+
+	// The 3D Window
+	window3D = glutCreateWindow("Sackbot Attack");
+	glutPositionWindow(900, 100);
+	glewInit();
+	glutDisplayFunc(display3D);
+	glutReshapeFunc(reshape3D);
+	glutMouseWheelFunc(mouseScrollWheelHandler3D);
+	glutMotionFunc(mouseMotionHandler3D);
+	glutKeyboardFunc(keyboardHandler3D);
+	// Initialize the 3D system
+	init3DSurfaceWindow();
+	
+	glutTimerFunc(24, gameLoop, 0);
+	// Annnd... ACTION!!
+	glutMainLoop();
+
+	return 0;
 }

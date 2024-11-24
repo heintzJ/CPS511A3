@@ -4,6 +4,16 @@ public:
 	void position(float xPos, float yPos, float zPos);
 	void scaleRobot(float scaleX, float scaleY, float scaleZ);
 	void robotVelocity(float vx, float vy, float vz);
+	float currentX() const {
+		return xPos;
+	}
+	float currentY() const {
+		return yPos;
+	}
+	float currentZ() const {
+		return zPos;
+	}
+	void move();
 
 private:
 	float xPos, yPos, zPos;

@@ -427,8 +427,8 @@ void drawRightLeg()
 void Sackbot::position(float x, float y, float z)
 {
 	xPos = x;
-	yPos = z;
-	zPos = y;
+	yPos = y;
+	zPos = z;
 }
 
 void Sackbot::scaleRobot(float x, float y, float z)
@@ -443,6 +443,12 @@ void Sackbot::robotVelocity(float x, float y, float z)
 	vx = x;
 	vy = y;
 	vz = z;
+}
+
+void Sackbot::move() {
+	xPos += vx;
+	yPos += vy;
+	zPos += vz;
 }
 
 void rotateCannon(int param)

@@ -12,7 +12,10 @@
 #include "sackbot.h"
 #include <random>
 
+#define M_PI 3.14159265358979323846
+
 std::vector<Sackbot> sackbots;
+Vector3D add3DVectors(Vector3D a, Vector3D b);
 
 GLdouble worldLeft = -12;
 GLdouble worldRight = 12;
@@ -32,8 +35,8 @@ GLint viewportHeight = glutWindowHeight;
 
 // screen window identifiers
 int window3D;
-int window3DSizeX = 800, window3DSizeY = 600;
-GLdouble aspect = (GLdouble)window3DSizeX / window3DSizeY;
+int windowWidth = 800, windowHeight = 600;
+GLdouble aspect = (GLdouble)windowWidth / windowHeight;
 
 // Ground Mesh material
 GLfloat groundMat_ambient[] = { 0.4, 0.4, 0.4, 1.0 };
@@ -123,14 +126,26 @@ unsigned int VAOid;
 unsigned int VBOid;
 unsigned int IBOid;
 
+bool firstMouse = true;
+
 GLdouble fov = 60.0;
 
 int lastMouseX;
 int lastMouseY;
 
-GLdouble eyeX = 0.0, eyeY = 0.0, eyeZ = 22.0;
+GLdouble eyeX = 0.0, eyeY = 0.0, eyeZ = 30.0;
 GLdouble radius = eyeZ;
-GLdouble zNear = 0.1, zFar = 40.0;
+GLdouble zNear = 0.1, zFar = 60.0;
+float cameraYaw = -90.0f;
+float cameraPitch = 0.0f;
+
+Vector3D cameraPos = { eyeX, eyeY, eyeZ };
+Vector3D cameraFront = { 0.0, 0.0, -1.0 };
+Vector3D cameraUp = { 0.0, 1.0, 0.0 };
+
+float cannonX = 0.0f;
+float cannonY = -2.0f;
+float cannonZ = 25.0f;
 
 Assimp::Importer importer;
 
@@ -161,7 +176,7 @@ void init3DSurfaceWindow()
 	glEnable(GL_LINE_SMOOTH);
 	glClearColor(0.4F, 0.4F, 0.4F, 0.0F);  // Color and depth for glClear
 
-	glViewport(0, 0, (GLsizei)window3DSizeX, (GLsizei)window3DSizeY);
+	glViewport(0, 0, (GLsizei)windowWidth, (GLsizei)windowHeight);
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	gluPerspective(fov, aspect, zNear, zFar);
@@ -188,13 +203,24 @@ void display3D()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glLoadIdentity();
-	// Set up the Viewing Transformation (V matrix)	
-	gluLookAt(eyeX, eyeY, eyeZ, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+
+	Vector3D lookAt = add3DVectors(cameraPos, cameraFront);
+	gluLookAt(
+		cameraPos.x, cameraPos.y, cameraPos.z,
+		lookAt.x, lookAt.y, lookAt.z,
+		cameraUp.x, cameraUp.y, cameraUp.z
+	);
 
 	drawGround();
 
-	//loadModel();
-	//loadedMesh->Draw();
+	glPushMatrix();
+	glTranslatef(cannonX, cannonY, cannonZ);
+	float angle = atan2(cameraFront.x, cameraFront.z) * 180.0f / M_PI;
+	glRotatef(-60.0f, 1.0f, 0.0f, 0.0f);
+	glRotatef(angle, 0.0f, 1.0f, 0.0f);
+	loadModel();
+	loadedMesh->Draw();
+	glPopMatrix();
 
 	for (auto& sackbot : sackbots)
 	{
@@ -213,10 +239,10 @@ void drawGround()
 	glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, groundMat_shininess);
 	glBegin(GL_QUADS);
 	glNormal3f(0, 1, 0);
-	glVertex3f(-22.0f, -4.0f, -22.0f);
-	glVertex3f(-22.0f, -4.0f, 22.0f);
-	glVertex3f(22.0f, -4.0f, 22.0f);
-	glVertex3f(22.0f, -4.0f, -22.0f);
+	glVertex3f(-22.0f, -4.0f, -30.0f);
+	glVertex3f(-22.0f, -4.0f, 30.0f);
+	glVertex3f(22.0f, -4.0f, 30.0f);
+	glVertex3f(22.0f, -4.0f, -30.0f);
 	glEnd();
 	glPopMatrix();
 }
@@ -298,12 +324,12 @@ void spawnSackbot()
 	// spawn the robot somewhere on the x axis and 10 units away
 	float x = dist(gen);
 	float y = 0.0f;
-	float z = -22.0f; // edge of ground
+	float z = -30.0f; // edge of ground
 	sackbot.position(x, y, z);
 	sackbot.robotVelocity(0.0f, 0.0f, 0.1f);
 	sackbot.scaleRobot(0.5f, 0.5f, 0.5f);
 	sackbots.push_back(sackbot);
-	std::cout << "Spawned sackbot" << std::endl;
+	std::cout << "Spawned sackbot at (" << x << " " << y << " " << z << ")" << std::endl;
 
 }
 
@@ -330,7 +356,7 @@ void spawner()
 	// remove robots that pass the camera
 	sackbots.erase(
 		std::remove_if(sackbots.begin(), sackbots.end(), [](Sackbot& sackbot) {
-			return sackbot.currentZ() > 5.0f;
+			return sackbot.currentZ() > 20.0f;
 			}),
 		sackbots.end()
 	);
@@ -341,68 +367,89 @@ void spawner()
 // spawn a sack bot every 24ms
 void gameLoop(int value) {
 	spawner();
-	glutTimerFunc(24, gameLoop, 0);
+	glutTimerFunc(16, gameLoop, 0);
 }
 
-int currentButton;
-
-void mouseScrollWheelHandler3D(int button, int dir, int xMouse, int yMouse)
+void screenToWorldCoordinates(int xScreen, int yScreen, GLdouble* xw, GLdouble* yw)
 {
-	// Zoom in (scroll up)
-	if (dir > 0)
-	{
-		fov -= 5.0;
-		if (fov < 20.0) // Prevent excessive zoom-in
-			fov = 20.0;
-	}
-	// Zoom out (scroll down)
-	else
-	{
-		fov += 5.0;
-		if (fov > 120.0) // Prevent excessive zoom-out
-			fov = 120.0;
-	}
-
-	// Update the projection matrix to apply the new FOV
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(fov, aspect, zNear, zFar);
-	glMatrixMode(GL_MODELVIEW);
-
-	// Request a redraw
-	glutPostRedisplay();
+	GLdouble xView, yView;
+	screenToCameraCoordinates(xScreen, yScreen, &xView, &yView);
+	cameraToWorldCoordinates(xView, yView, xw, yw);
 }
 
-float theta = 0.0f;
-float phi = 0.0f;
-void mouseMotionHandler3D(int x, int y)
+void screenToCameraCoordinates(int xScreen, int yScreen, GLdouble* xCamera, GLdouble* yCamera)
 {
-	int dx = x - lastMouseX;
-	int dy = y - lastMouseY;
-	if (currentButton == GLUT_LEFT_BUTTON)
+	*xCamera = ((wvRight - wvLeft) / glutWindowWidth) * xScreen;
+	*yCamera = ((wvTop - wvBottom) / glutWindowHeight) * (glutWindowHeight - yScreen);
+}
+
+void cameraToWorldCoordinates(GLdouble xcam, GLdouble ycam, GLdouble* xw, GLdouble* yw)
+{
+	*xw = xcam + wvLeft;
+	*yw = ycam + wvBottom;
+}
+
+void worldToCameraCoordinates(GLdouble xWorld, GLdouble yWorld, GLdouble* xcam, GLdouble* ycam)
+{
+	double wvCenterX = wvLeft + (wvRight - wvLeft) / 2.0;
+	double wvCenterY = wvBottom + (wvTop - wvBottom) / 2.0;
+	*xcam = worldCenterX - wvCenterX + xWorld;
+	*ycam = worldCenterY - wvCenterY + yWorld;
+}
+
+Vector3D add3DVectors(Vector3D a, Vector3D b)
+{
+	Vector3D result;
+	result.x = a.x + b.x;
+	result.y = a.y + b.y;
+	result.z = a.z + b.z;
+	return result;
+}
+
+Vector3D normalize(Vector3D a)
+{
+	GLdouble norm = sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+	Vector3D normalized;
+	normalized.x = a.x / norm;
+	normalized.y = a.y / norm;
+	normalized.z = a.z / norm;
+	return normalized;
+}
+void mouseMotionHandler2D(int xMouse, int yMouse)
+{
+	if (firstMouse)
 	{
-		// update x and z positions
-		theta += dx * 0.01f;
-		eyeX = cos(theta) * radius;
-		eyeZ = sin(theta) * radius;
+		lastMouseX = xMouse;
+		lastMouseY = yMouse;
+		firstMouse = false;
 	}
-	else if (currentButton == GLUT_RIGHT_BUTTON)
-	{
-		phi += dy * 0.01f;
-		if (eyeY > 60) {
-			eyeY = 60;
-		}
-		else if (eyeY < 0) {
-			eyeY = 0;
-			phi = 0; // this seems to stop the camera from going into the ground
-		}
-		else {
-			eyeY = sin(phi) * radius;
-			
-		}
+	float sensitivity = 0.1f;
+
+	// limit viewing angles
+	if (cameraPitch > 50.0f) {
+		cameraPitch = 50.0f;
 	}
-	lastMouseX = x;
-	lastMouseY = y;
+	if (cameraPitch < 0.0f) {
+		cameraPitch = 0.0f;
+	}
+	if (cameraYaw > -50.0f) {
+		cameraYaw = -50.0f;
+	}
+	if (cameraYaw < -130.0f) {
+		cameraYaw = -130.0f;
+	}
+	
+	cameraYaw += (xMouse - lastMouseX) * sensitivity;
+	cameraPitch += (lastMouseY - yMouse) * sensitivity;
+
+	lastMouseX = xMouse;
+	lastMouseY = yMouse;
+	
+	Vector3D direction;
+	direction.x = (cos(cameraYaw / 180.0f * M_PI)) * (cos(cameraPitch / 180.0f * M_PI));
+	direction.y = sin(cameraPitch / 180.0f * M_PI);
+	direction.z = (sin(cameraYaw / 180.0f * M_PI)) * (cos(cameraPitch / 180.0f * M_PI));
+	cameraFront = normalize(direction);
 	glutPostRedisplay();
 }
 
@@ -425,21 +472,23 @@ int main(int argc, char* argv[])
 	glutInit(&argc, (char**)argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	glutInitWindowSize(glutWindowWidth, glutWindowHeight);
-	glutInitWindowPosition(50, 100);
+	//glutInitWindowPosition(50, 100);
 
 	// The 3D Window
 	window3D = glutCreateWindow("Sackbot Attack");
-	glutPositionWindow(900, 100);
+	//glutPositionWindow(900, 100);
+	glutFullScreen();
 	glewInit();
 	glutDisplayFunc(display3D);
 	glutReshapeFunc(reshape3D);
-	glutMouseWheelFunc(mouseScrollWheelHandler3D);
-	glutMotionFunc(mouseMotionHandler3D);
 	glutKeyboardFunc(keyboardHandler3D);
+	glutPassiveMotionFunc(mouseMotionHandler2D);
+	glutSetCursor(GLUT_CURSOR_NONE);
+	glutWarpPointer(400, 300);
 	// Initialize the 3D system
 	init3DSurfaceWindow();
 	
-	glutTimerFunc(24, gameLoop, 0);
+	glutTimerFunc(16, gameLoop, 0);
 	// Annnd... ACTION!!
 	glutMainLoop();
 

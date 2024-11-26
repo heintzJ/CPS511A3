@@ -10,12 +10,19 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "sackbot.h"
+#include "bullet.h"
 #include <random>
 
 #define M_PI 3.14159265358979323846
 
 std::vector<Sackbot> sackbots;
+std::vector<Bullet> bullets;
+
+// for some reason I can't put these in the header file
 Vector3D add3DVectors(Vector3D a, Vector3D b);
+Vector3D subtract3DVectors(Vector3D a, Vector3D b);
+float magnitude(Vector3D a);
+bool collided(Sackbot& sackbot, Bullet& bullet);
 
 GLdouble worldLeft = -12;
 GLdouble worldRight = 12;
@@ -61,7 +68,6 @@ GLfloat quadMat_ambient[] = { 0.0, 0.0, 0.0, 1.0 };
 GLfloat quadMat_specular[] = { 0.45, 0.55, 0.45, 1.0 };
 GLfloat quadMat_diffuse[] = { 0.1, 0.35, 0.1, 1.0 };
 GLfloat quadMat_shininess[] = { 10.0 };
-
 
 // Quads and Vertices of the surface of revolution
 typedef struct Vertex
@@ -128,7 +134,7 @@ unsigned int IBOid;
 
 bool firstMouse = true;
 
-GLdouble fov = 60.0;
+GLdouble fov = 80.0;
 
 int lastMouseX;
 int lastMouseY;
@@ -145,7 +151,7 @@ Vector3D cameraUp = { 0.0, 1.0, 0.0 };
 
 float cannonX = 0.0f;
 float cannonY = -2.0f;
-float cannonZ = 25.0f;
+float cannonZ = 27.0f;
 
 Assimp::Importer importer;
 
@@ -204,6 +210,8 @@ void display3D()
 
 	glLoadIdentity();
 
+	// cameraFront is the direction the camera is facing
+	// adding that to the camera position gives us the location to look at
 	Vector3D lookAt = add3DVectors(cameraPos, cameraFront);
 	gluLookAt(
 		cameraPos.x, cameraPos.y, cameraPos.z,
@@ -215,9 +223,12 @@ void display3D()
 
 	glPushMatrix();
 	glTranslatef(cannonX, cannonY, cannonZ);
-	float angle = atan2(cameraFront.x, cameraFront.z) * 180.0f / M_PI;
-	glRotatef(-60.0f, 1.0f, 0.0f, 0.0f);
-	glRotatef(angle, 0.0f, 1.0f, 0.0f);
+	glScalef(0.66f, 0.66f, 0.66f);
+	glRotatef(90, 0.0f, 1.0f, 0.0f);
+	glRotatef(cameraYaw, 0.0f, 1.0f, 0.0f);
+	glRotatef(cameraPitch, 1.0f, 0.0f, 0.0f);
+	glRotatef(-70, 1.0f, 0.0f, 0.0f);
+	
 	loadModel();
 	loadedMesh->Draw();
 	glPopMatrix();
@@ -225,6 +236,10 @@ void display3D()
 	for (auto& sackbot : sackbots)
 	{
 		sackbot.drawRobot();
+	}
+	for (auto& bullet : bullets)
+	{
+		bullet.drawBullet();
 	}
 
 	glutSwapBuffers();
@@ -239,9 +254,9 @@ void drawGround()
 	glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, groundMat_shininess);
 	glBegin(GL_QUADS);
 	glNormal3f(0, 1, 0);
-	glVertex3f(-22.0f, -4.0f, -30.0f);
+	glVertex3f(-40.0f, -4.0f, -30.0f);
 	glVertex3f(-22.0f, -4.0f, 30.0f);
-	glVertex3f(22.0f, -4.0f, 30.0f);
+	glVertex3f(40.0f, -4.0f, 30.0f);
 	glVertex3f(22.0f, -4.0f, -30.0f);
 	glEnd();
 	glPopMatrix();
@@ -336,8 +351,8 @@ void spawnSackbot()
 // this takes a sackbot from the sackbots vector and gives it the 
 float spawnInterval = 2.0f;
 float timeSinceLastSpawn = 0.0f;
-float deltaTime = 0.024f;
-void spawner()
+float deltaTime = 0.016f;
+void sackbotHandler()
 {
 	timeSinceLastSpawn += deltaTime;
 	
@@ -364,9 +379,97 @@ void spawner()
 	glutPostRedisplay();
 }
 
-// spawn a sack bot every 24ms
+void bulletHandler()
+{
+	// update position of bullets
+	for (auto& bullet : bullets) {
+		bullet.moveBullet();
+	}
+
+	// remove a bullet if it gets too far away
+	bullets.erase(
+		std::remove_if(bullets.begin(), bullets.end(), [](Bullet& bullet) {
+			return bullet.currentZ() < -50.0f;
+			}),
+		bullets.end()
+	);
+
+	glutPostRedisplay();
+}
+
+// create a bullet object and put it in the bullets vector
+void createBullet()
+{
+	Bullet bullet;
+	float bulletSpeed = 0.2f;
+
+	// calculate the direction vector
+	float dirX = cos(cameraYaw / 180.0f * M_PI) * cos(cameraPitch / 180.0f * M_PI);
+	float dirY = sin(cameraPitch / 180.0f * M_PI);
+	float dirZ = sin(cameraYaw / 180.0f * M_PI) * cos(cameraPitch / 180.0f * M_PI);
+
+	float offset = 2.0f;
+
+	// set the bullet's initial position at the end of the cannon
+	float x = cannonX + dirX * offset;
+	float y = cannonY + dirY * offset;
+	float z = cannonZ + dirZ * offset;
+
+	bullet.position(x, y, z);
+
+	// set the bullet's velocity based on the cannon's direction
+	bullet.bulletVelocity(
+		dirX * bulletSpeed,
+		dirY * bulletSpeed,
+		dirZ * bulletSpeed
+	);
+	// this will angle the bullet correctly when it is fired
+	bullet.setBulletOrientation(cameraYaw, cameraPitch);
+
+	bullets.push_back(bullet);
+
+	std::cout << "Bullet created:" << std::endl;
+	std::cout << "  Yaw: " << cameraYaw << ", Pitch: " << cameraPitch << std::endl;
+	std::cout << "  Position: " << x << ", " << y << ", " << z << std::endl;
+	std::cout << "  Direction: " << dirX << ", " << dirY << ", " << dirZ << std::endl;
+	std::cout << "  Velocity: "
+		<< dirX * bulletSpeed << ", "
+		<< dirY * bulletSpeed << ", "
+		<< dirZ * bulletSpeed << std::endl;
+}
+
+bool collided(Sackbot& sackbot, Bullet& bullet) 
+{
+	// if the magnitude of the distance vector between the sackbot and bullet is < 1, return true
+	// have to make the sackbot hitbox larger, so we can hit the head
+	Vector3D sackbotPos = { sackbot.currentX(), sackbot.currentY() + (6 * 0.66), sackbot.currentZ()};
+	Vector3D bulletPos = { bullet.currentX(), bullet.currentY(), bullet.currentZ() };
+	float distance = magnitude(subtract3DVectors(bulletPos, sackbotPos));
+	return distance < 1.0f;
+}
+
+// spawn a sack bot every 16ms
 void gameLoop(int value) {
-	spawner();
+	sackbotHandler();
+	bulletHandler();
+	// always check for colliding bullets and sackbots
+	for (size_t i = 0; i < sackbots.size(); ) {
+        bool removed = false;
+        for (size_t j = 0; j < bullets.size(); ) {
+            if (collided(sackbots[i], bullets[j])) {
+                sackbots.erase(sackbots.begin() + i);
+                bullets.erase(bullets.begin() + j);
+                removed = true;
+                break;  // Exit bullet loop after removal
+            } else {
+                ++j;
+            }
+        }
+        
+        if (!removed) {
+            ++i;
+        }
+    }
 	glutTimerFunc(16, gameLoop, 0);
 }
 
@@ -404,6 +507,20 @@ Vector3D add3DVectors(Vector3D a, Vector3D b)
 	result.y = a.y + b.y;
 	result.z = a.z + b.z;
 	return result;
+}
+
+Vector3D subtract3DVectors(Vector3D a, Vector3D b)
+{
+	Vector3D result;
+	result.x = a.x - b.x;
+	result.y = a.y - b.y;
+	result.z = a.z - b.z;
+	return result;
+}
+
+float magnitude(Vector3D a)
+{
+	return sqrt(pow(a.x, 2) + pow(a.y, 2) + pow(a.z, 2));
 }
 
 Vector3D normalize(Vector3D a)
@@ -467,6 +584,27 @@ void keyboardHandler3D(unsigned char key, int x, int y)
 	glutPostRedisplay();
 }
 
+int currentButton;
+
+void mouseButtonHandler3D(int button, int state, int x, int y)
+{
+	currentButton = button;
+	lastMouseX = x;
+	lastMouseY = y;
+	switch (button)
+	{
+	case GLUT_LEFT_BUTTON:
+		if (state == GLUT_DOWN)
+		{
+			createBullet();
+			glutPostRedisplay();
+		}
+		break;
+	default:
+		break;
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	glutInit(&argc, (char**)argv);
@@ -483,6 +621,7 @@ int main(int argc, char* argv[])
 	glutReshapeFunc(reshape3D);
 	glutKeyboardFunc(keyboardHandler3D);
 	glutPassiveMotionFunc(mouseMotionHandler2D);
+	glutMouseFunc(mouseButtonHandler3D);
 	glutSetCursor(GLUT_CURSOR_NONE);
 	glutWarpPointer(400, 300);
 	// Initialize the 3D system

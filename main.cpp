@@ -401,7 +401,7 @@ void bulletHandler()
 void createBullet()
 {
 	Bullet bullet;
-	float bulletSpeed = 0.2f;
+	float bulletSpeed = 1.0f;
 
 	// calculate the direction vector
 	float dirX = cos(cameraYaw / 180.0f * M_PI) * cos(cameraPitch / 180.0f * M_PI);
@@ -442,10 +442,10 @@ bool collided(Sackbot& sackbot, Bullet& bullet)
 {
 	// if the magnitude of the distance vector between the sackbot and bullet is < 1, return true
 	// have to make the sackbot hitbox larger, so we can hit the head
-	Vector3D sackbotPos = { sackbot.currentX(), sackbot.currentY() + (6 * 0.66), sackbot.currentZ()};
+	Vector3D sackbotPos = { sackbot.currentX(), sackbot.currentY(), sackbot.currentZ()};
 	Vector3D bulletPos = { bullet.currentX(), bullet.currentY(), bullet.currentZ() };
 	float distance = magnitude(subtract3DVectors(bulletPos, sackbotPos));
-	return distance < 1.0f;
+	return distance < 3.0f;
 }
 
 // spawn a sack bot every 16ms
@@ -460,7 +460,7 @@ void gameLoop(int value) {
                 sackbots.erase(sackbots.begin() + i);
                 bullets.erase(bullets.begin() + j);
                 removed = true;
-                break;  // Exit bullet loop after removal
+                break;
             } else {
                 ++j;
             }

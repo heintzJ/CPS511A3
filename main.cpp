@@ -438,6 +438,90 @@ void createBullet()
 		<< dirZ * bulletSpeed << std::endl;
 }
 
+//------------------------
+//
+// 
+//will need more work and testing
+void createEnemyBullet(Sackbot& bot)
+{
+	//used to generate a random yaw and pitch value
+	std::random_device seed;
+	std::mt19937 gen{ seed() };
+	std::uniform_int_distribution<> yaw{ -130,-50 }; //used to get a random yaw value
+	std::uniform_int_distribution<> pitch{ 0,50 }; //used to get a random pitch value
+	size_t i = 1;
+
+	//initialize bullet
+	Bullet bullet;
+	float bulletSpeed = 1.0f;
+
+	float offset = 2.0f;
+
+	//get current coordinate values of the current sackbot
+	float botX = bot.currentX();
+	float botY = bot.currentY();
+	float botZ = bot.currentZ();
+
+	//if i mod 5 is not 0 it will shoot a random direction, else it will shoot at cannon directly
+	if (i % 5 != 0)
+	{
+		//generate random angles
+		float randYaw = yaw(gen);
+		float randPitch = pitch(gen);
+
+		//create direction vector with these random angles
+		float dirX = cos(randYaw / 180.0f * M_PI) * cos(randPitch / 180.0f * M_PI);
+		float dirY = sin(randPitch / 180.0f * M_PI);
+		float dirZ = sin(randYaw / 180.0f * M_PI) * cos(randPitch / 180.0f * M_PI);
+
+		//set the bullet's initial position at the position of the current bot
+		float x = botX + dirX * offset;
+		float y = botY + dirY * offset;
+		float z = botZ + dirZ * offset;
+		bullet.position(x, y, z);
+
+		//set the bullet's velocity to aim at the cannon
+		bullet.bulletVelocity(dirX * bulletSpeed, dirY * bulletSpeed, dirZ * bulletSpeed);
+
+		//set the bullet's orientation to the random agnles
+		bullet.setBulletOrientation(randYaw, randPitch);
+
+		//add the bullet to the vector
+		bullets.push_back(bullet);
+
+		i++;
+	}
+	else
+	{
+		//calculate direction to cannon
+		float dirX = cannonX - botX;
+		float dirY = cannonY - botY;
+		float dirZ = cannonZ - botZ;
+
+		//normalize the direction vector (did not use function to better access the variables)
+		float magnitude = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
+		dirX /= magnitude;
+		dirY /= magnitude;
+		dirZ /= magnitude;
+
+		//set the bullet's initial position at the position of the current sackbot
+		float x = botX + dirX * offset;
+		float y = botY + dirY * offset;
+		float z = botZ + dirZ * offset;
+		bullet.position(x, y, z);
+
+		//set the bullet's velocity to aim at the cannon
+		bullet.bulletVelocity(dirX * bulletSpeed, dirY * bulletSpeed, dirZ * bulletSpeed);
+
+		//add the bullet to the vector
+		bullets.push_back(bullet);
+
+		i++;
+	}
+
+	
+}
+
 bool collided(Sackbot& sackbot, Bullet& bullet) 
 {
 	// if the magnitude of the distance vector between the sackbot and bullet is < 1, return true
@@ -448,10 +532,38 @@ bool collided(Sackbot& sackbot, Bullet& bullet)
 	return distance < 3.0f;
 }
 
+//------------------------
+// 
+// 
+//will need testing
+bool collidedCannon(Bullet& bullet)
+{
+	//if the magnitude of the distance vector between the cannon and enemy bullet is < 1, return true
+	Vector3D cannonPos = { cannonX, cannonY, cannonZ };
+	Vector3D bulletPos = { bullet.currentX(), bullet.currentY(), bullet.currentZ() };
+
+	float dist = magnitude(subtract3DVectors(bulletPos, cannonPos));
+	return dist < 3.0f;
+	
+}
+
 // spawn a sack bot every 16ms
 void gameLoop(int value) {
 	sackbotHandler();
 	bulletHandler();
+
+	//----------------------
+	// 
+	// 
+	//udate each sackbot's shooting timer and trigger shooting (will need testing)
+	for (auto& sackbot : sackbots) {
+		sackbot.updateTimer(deltaTime);
+
+		if (sackbot.shouldShoot()) {
+			createEnemyBullet(sackbot); //pass the sackbot to the shooting function
+		}
+	}
+
 	// always check for colliding bullets and sackbots
 	for (size_t i = 0; i < sackbots.size(); ) {
         bool removed = false;
@@ -470,6 +582,24 @@ void gameLoop(int value) {
             ++i;
         }
     }
+
+	//------------------------
+	// 
+	// 
+	//check for bullets collding with cannon (will need testing)
+	for (size_t i; i < bullets.size(); i++)
+	{
+
+		if (collidedCannon(bullets[i]))
+		{
+			bullets.erase(bullets.begin() + i);
+		}
+		else
+		{
+			i++;
+		}
+	}
+
 	glutTimerFunc(16, gameLoop, 0);
 }
 

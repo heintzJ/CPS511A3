@@ -15,8 +15,24 @@ public:
 		return zPos;
 	}
 
+	//update the timer of when to shoot
+	void updateTimer(float deltaTime) {
+		timeSinceLastShot += deltaTime;
+	}
+
+	//check if the sackbot should shoot
+	bool shouldShoot() {
+		if (timeSinceLastShot >= shootInterval) {
+			timeSinceLastShot = 0.0f; //reset the timer
+			return true;
+		}
+		return false;
+	}
+
 private:
 	float xPos, yPos, zPos;
 	float scaleX, scaleY, scaleZ;
 	float vx, vy, vz;
+	float timeSinceLastShot = 0.0f; //time tracker for shooting
+	float shootInterval = 2.5f;     //interval at which this sackbot shoots
 };

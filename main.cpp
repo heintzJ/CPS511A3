@@ -244,6 +244,10 @@ void display3D()
 	{
 		bullet.drawBullet();
 	}
+	for (auto& bullet : enemyBullets)
+	{
+		bullet.drawBullet();
+	}
 
 	glutSwapBuffers();
 }
@@ -351,7 +355,6 @@ void spawnSackbot()
 
 }
 
-// this takes a sackbot from the sackbots vector and gives it the 
 float spawnInterval = 2.0f;
 float timeSinceLastSpawn = 0.0f;
 float deltaTime = 0.016f;
@@ -381,7 +384,6 @@ void sackbotHandler()
 	sackbots.erase(
 		std::remove_if(sackbots.begin(), sackbots.end(), [](Sackbot& sackbot) {
 			return sackbot.currentZ() > 20.0f;
-			std::cout << "Removed sackbot" << std::endl;
 			}),
 		sackbots.end()
 	);
@@ -396,12 +398,24 @@ void bulletHandler()
 		bullet.moveBullet();
 	}
 
+	for (auto& bullet : enemyBullets) {
+		bullet.moveBullet();
+	}
+
 	// remove a bullet if it gets too far away
 	bullets.erase(
 		std::remove_if(bullets.begin(), bullets.end(), [](Bullet& bullet) {
 			return bullet.currentZ() < -50.0f;
 			}),
 		bullets.end()
+	);
+
+	// remove enemy bullet if it goes past the camera
+	enemyBullets.erase(
+		std::remove_if(enemyBullets.begin(), enemyBullets.end(), [](Bullet& bullet) {
+			return bullet.currentZ() > 35.0f;
+			}),
+		enemyBullets.end()
 	);
 
 	glutPostRedisplay();
@@ -448,9 +462,9 @@ void createEnemyBullet(Sackbot& bot)
 	//used to generate a random yaw and pitch value
 	std::random_device seed;
 	std::mt19937 gen{ seed() };
-	std::uniform_int_distribution<> yaw{ -130,-50 }; //used to get a random yaw value
-	std::uniform_int_distribution<> pitch{ 0,50 }; //used to get a random pitch value
-	size_t i = 1;
+	std::uniform_int_distribution<> randYaw{ 70, 130 }; //used to get a random yaw value
+	std::uniform_int_distribution<> randPitch{ -5, 10 }; //used to get a random pitch value
+	static size_t i = 0;
 
 	//initialize bullet
 	Bullet bullet;
@@ -466,14 +480,14 @@ void createEnemyBullet(Sackbot& bot)
 	//if i mod 5 is not 0 it will shoot a random direction, else it will shoot at cannon directly
 	if (i % 5 != 0)
 	{
-		//generate random angles
-		float randYaw = yaw(gen);
-		float randPitch = pitch(gen);
+		//offset the angles
+		float bulletRandYaw = randYaw(gen);
+		float bulletRandPitch = randPitch(gen);
 
 		//create direction vector with these random angles
-		float dirX = cos(randYaw / 180.0f * M_PI) * cos(randPitch / 180.0f * M_PI);
-		float dirY = sin(randPitch / 180.0f * M_PI);
-		float dirZ = sin(randYaw / 180.0f * M_PI) * cos(randPitch / 180.0f * M_PI);
+		float dirX = cos(bulletRandYaw / 180.0f * M_PI) * cos(bulletRandPitch / 180.0f * M_PI);
+		float dirY = sin(bulletRandPitch / 180.0f * M_PI);
+		float dirZ = sin(bulletRandYaw / 180.0f * M_PI) * cos(bulletRandPitch / 180.0f * M_PI);
 
 		//set the bullet's initial position at the position of the current bot
 		float x = botX + dirX * offset;
@@ -485,13 +499,9 @@ void createEnemyBullet(Sackbot& bot)
 		bullet.bulletVelocity(dirX * bulletSpeed, dirY * bulletSpeed, dirZ * bulletSpeed);
 
 		//set the bullet's orientation to the random agnles
-		bullet.setBulletOrientation(randYaw, randPitch);
-
-		//add the bullet to the vector
-		enemyBullets.push_back(bullet);
-
-		i++;
+		bullet.setBulletOrientation(bulletRandYaw, bulletRandPitch);
 	}
+	// shoot directly at the cannon
 	else
 	{
 		//calculate direction to cannon
@@ -514,13 +524,15 @@ void createEnemyBullet(Sackbot& bot)
 		//set the bullet's velocity to aim at the cannon
 		bullet.bulletVelocity(dirX * bulletSpeed, dirY * bulletSpeed, dirZ * bulletSpeed);
 
-		//add the bullet to the vector
-		enemyBullets.push_back(bullet);
-
-		i++;
+		// rotate bullet to point at the cannon
+		float yaw = atan2(dirZ, dirX) * 180.0f / M_PI;
+		float pitch = asin(dirY) * 180.0f / M_PI;
+		bullet.setBulletOrientation(yaw, pitch);
 	}
+	//add the bullet to the vector
+	enemyBullets.push_back(bullet);
 
-	
+	i++;
 }
 
 bool collided(Sackbot& sackbot, Bullet& bullet) 
@@ -533,10 +545,6 @@ bool collided(Sackbot& sackbot, Bullet& bullet)
 	return distance < 3.0f;
 }
 
-//------------------------
-// 
-// 
-//will need testing
 bool collidedCannon(Bullet& bullet)
 {
 	//if the magnitude of the distance vector between the cannon and enemy bullet is < 1, return true
@@ -544,8 +552,7 @@ bool collidedCannon(Bullet& bullet)
 	Vector3D bulletPos = { bullet.currentX(), bullet.currentY(), bullet.currentZ() };
 
 	float dist = magnitude(subtract3DVectors(bulletPos, cannonPos));
-	return dist < 3.0f;
-	
+	return dist < 1.0f;
 }
 
 // spawn a sack bot every 16ms
@@ -577,12 +584,12 @@ void gameLoop(int value) {
 	{
 		if (collidedCannon(enemyBullets[i]))
 		{
-			bullets.erase(enemyBullets.begin() + i);
+			enemyBullets.erase(enemyBullets.begin() + i);
 			cameraLocked = true;
 		}
 		else
 		{
-			i++;
+			++i;
 		}
 	}
 
@@ -702,6 +709,9 @@ void keyboardHandler3D(unsigned char key, int x, int y)
 	case 'Q':
 		exit(0);
 		break;
+	case 'b':
+		cameraLocked = true;
+	}
 	glutPostRedisplay();
 }
 

@@ -28,6 +28,13 @@ public:
 		}
 		return false;
 	}
+	float getTimeSinceLastShot() const {
+		return timeSinceLastShot;
+	}
+
+	float getShootInterval() const {
+		return shootInterval;
+	}
 
 private:
 	float xPos, yPos, zPos;

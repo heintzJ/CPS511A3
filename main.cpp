@@ -146,6 +146,7 @@ GLdouble radius = eyeZ;
 GLdouble zNear = 0.1, zFar = 60.0;
 float cameraYaw = -90.0f;
 float cameraPitch = 0.0f;
+bool cameraLocked = false;
 
 Vector3D cameraPos = { eyeX, eyeY, eyeZ };
 Vector3D cameraFront = { 0.0, 0.0, -1.0 };
@@ -577,7 +578,7 @@ void gameLoop(int value) {
 		if (collidedCannon(enemyBullets[i]))
 		{
 			bullets.erase(enemyBullets.begin() + i);
-			// TODO: stop cannon function and apply a broken texture
+			cameraLocked = true;
 		}
 		else
 		{
@@ -649,6 +650,12 @@ Vector3D normalize(Vector3D a)
 }
 void mouseMotionHandler2D(int xMouse, int yMouse)
 {
+	// camera will be locked if cannon is destroyed, so don't process mouse movement
+	if (cameraLocked)
+	{
+		return;
+	}
+
 	if (firstMouse)
 	{
 		lastMouseX = xMouse;
@@ -695,7 +702,6 @@ void keyboardHandler3D(unsigned char key, int x, int y)
 	case 'Q':
 		exit(0);
 		break;
-	}
 	glutPostRedisplay();
 }
 
@@ -703,6 +709,12 @@ int currentButton;
 
 void mouseButtonHandler3D(int button, int state, int x, int y)
 {
+	// don't let bullets be shot if camera is locked
+	if (cameraLocked)
+	{
+		return;
+	}
+
 	currentButton = button;
 	lastMouseX = x;
 	lastMouseY = y;

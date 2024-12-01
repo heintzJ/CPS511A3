@@ -17,12 +17,14 @@
 
 std::vector<Sackbot> sackbots;
 std::vector<Bullet> bullets;
+std::vector<Bullet> enemyBullets;
 
 // for some reason I can't put these in the header file
 Vector3D add3DVectors(Vector3D a, Vector3D b);
 Vector3D subtract3DVectors(Vector3D a, Vector3D b);
 float magnitude(Vector3D a);
 bool collided(Sackbot& sackbot, Bullet& bullet);
+void createEnemyBullet(Sackbot& bot);
 
 GLdouble worldLeft = -12;
 GLdouble worldRight = 12;
@@ -363,15 +365,22 @@ void sackbotHandler()
 	}
 
 	// always update the positions of current sackbots
+	// also update the shooting timer and call the sackbot to shoot
 	for (auto& sackbot : sackbots)
 	{
 		sackbot.move();
+		sackbot.updateTimer(deltaTime);
+
+		if (sackbot.shouldShoot()) {
+			createEnemyBullet(sackbot); //pass the sackbot to the shooting function
+		}
 	}
 
 	// remove robots that pass the camera
 	sackbots.erase(
 		std::remove_if(sackbots.begin(), sackbots.end(), [](Sackbot& sackbot) {
 			return sackbot.currentZ() > 20.0f;
+			std::cout << "Removed sackbot" << std::endl;
 			}),
 		sackbots.end()
 	);
@@ -427,15 +436,6 @@ void createBullet()
 	bullet.setBulletOrientation(cameraYaw, cameraPitch);
 
 	bullets.push_back(bullet);
-
-	std::cout << "Bullet created:" << std::endl;
-	std::cout << "  Yaw: " << cameraYaw << ", Pitch: " << cameraPitch << std::endl;
-	std::cout << "  Position: " << x << ", " << y << ", " << z << std::endl;
-	std::cout << "  Direction: " << dirX << ", " << dirY << ", " << dirZ << std::endl;
-	std::cout << "  Velocity: "
-		<< dirX * bulletSpeed << ", "
-		<< dirY * bulletSpeed << ", "
-		<< dirZ * bulletSpeed << std::endl;
 }
 
 //------------------------
@@ -487,7 +487,7 @@ void createEnemyBullet(Sackbot& bot)
 		bullet.setBulletOrientation(randYaw, randPitch);
 
 		//add the bullet to the vector
-		bullets.push_back(bullet);
+		enemyBullets.push_back(bullet);
 
 		i++;
 	}
@@ -514,7 +514,7 @@ void createEnemyBullet(Sackbot& bot)
 		bullet.bulletVelocity(dirX * bulletSpeed, dirY * bulletSpeed, dirZ * bulletSpeed);
 
 		//add the bullet to the vector
-		bullets.push_back(bullet);
+		enemyBullets.push_back(bullet);
 
 		i++;
 	}
@@ -552,18 +552,6 @@ void gameLoop(int value) {
 	sackbotHandler();
 	bulletHandler();
 
-	//----------------------
-	// 
-	// 
-	//udate each sackbot's shooting timer and trigger shooting (will need testing)
-	for (auto& sackbot : sackbots) {
-		sackbot.updateTimer(deltaTime);
-
-		if (sackbot.shouldShoot()) {
-			createEnemyBullet(sackbot); //pass the sackbot to the shooting function
-		}
-	}
-
 	// always check for colliding bullets and sackbots
 	for (size_t i = 0; i < sackbots.size(); ) {
         bool removed = false;
@@ -583,16 +571,13 @@ void gameLoop(int value) {
         }
     }
 
-	//------------------------
-	// 
-	// 
 	//check for bullets collding with cannon (will need testing)
-	for (size_t i; i < bullets.size(); i++)
+	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
-
-		if (collidedCannon(bullets[i]))
+		if (collidedCannon(enemyBullets[i]))
 		{
-			bullets.erase(bullets.begin() + i);
+			bullets.erase(enemyBullets.begin() + i);
+			// TODO: stop cannon function and apply a broken texture
 		}
 		else
 		{
@@ -740,11 +725,9 @@ int main(int argc, char* argv[])
 	glutInit(&argc, (char**)argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	glutInitWindowSize(glutWindowWidth, glutWindowHeight);
-	//glutInitWindowPosition(50, 100);
 
 	// The 3D Window
 	window3D = glutCreateWindow("Sackbot Attack");
-	//glutPositionWindow(900, 100);
 	glutFullScreen();
 	glewInit();
 	glutDisplayFunc(display3D);

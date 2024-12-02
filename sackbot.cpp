@@ -70,6 +70,8 @@ void Sackbot::drawRobot()
 
 	glTranslatef(xPos, yPos, zPos);
 	glScalef(scaleX, scaleY, scaleZ);
+
+	progressWalk(); //used to get the bot walking
 	drawBody();
 	drawHead();
 	drawLeftArm();
@@ -178,7 +180,7 @@ void drawHead()
 	glPopMatrix();
 }
 
-void drawLeftArm()
+void Sackbot::drawLeftArm()
 {
 	glMaterialfv(GL_FRONT, GL_AMBIENT, robot_mat_ambient);
 	glMaterialfv(GL_FRONT, GL_SPECULAR, robot_mat_specular);
@@ -227,7 +229,7 @@ void drawLeftArm()
 	glPopMatrix();
 }
 
-void drawRightArm()
+void Sackbot::drawRightArm()
 {
 	glMaterialfv(GL_FRONT, GL_AMBIENT, robot_mat_ambient);
 	glMaterialfv(GL_FRONT, GL_SPECULAR, robot_mat_specular);
@@ -321,7 +323,7 @@ void drawRightArm()
 	glPopMatrix();
 }
 
-void drawLeftLeg()
+void Sackbot::drawLeftLeg()
 {
 	glMaterialfv(GL_FRONT, GL_AMBIENT, robot_mat_ambient);
 	glMaterialfv(GL_FRONT, GL_SPECULAR, robot_mat_specular);
@@ -372,7 +374,7 @@ void drawLeftLeg()
 	glPopMatrix();
 }
 
-void drawRightLeg()
+void Sackbot::drawRightLeg()
 {
 	glMaterialfv(GL_FRONT, GL_AMBIENT, robot_mat_ambient);
 	glMaterialfv(GL_FRONT, GL_SPECULAR, robot_mat_specular);
@@ -461,40 +463,42 @@ void rotateCannon(int param)
 	}
 }
 
-void walkAnimation(int param)
+
+
+//---------
+//
+//
+//New walking function (testing needs to be done)
+void Sackbot::walkMotion()
 {
 	static int direction = 1;
-	if (walking)
+
+	rightThighAngle += 6.0 * direction;
+	leftThighAngle -= 6.0 * direction;
+
+	rightCalfAngle -= 3.0 * direction;
+	if (rightCalfAngle < 0)
 	{
-		rightThighAngle += 6.0 * direction;
-		leftThighAngle -= 6.0 * direction;
-
-		rightCalfAngle -= 3.0 * direction;
-		if (rightCalfAngle < 0)
-		{
-			rightCalfAngle = 0;
-		}
-		else if (rightCalfAngle > 35)
-		{
-			rightCalfAngle = 35;
-		}
-
-		leftCalfAngle += 3.0 * direction;
-		if (leftCalfAngle > 35)
-		{
-			leftCalfAngle = 35;
-		}
-		else if (leftCalfAngle < 0)
-		{
-			leftCalfAngle = 0;
-		}
-
-		if (rightThighAngle >= 150 || rightThighAngle <= 30)
-		{
-			direction *= -1;
-		}
-
-		glutPostRedisplay();
-		glutTimerFunc(100, walkAnimation, 0);
+		rightCalfAngle = 0;
 	}
+	else if (rightCalfAngle > 35)
+	{
+		rightCalfAngle = 35;
+	}
+
+	leftCalfAngle += 3.0 * direction;
+	if (leftCalfAngle > 35)
+	{
+		leftCalfAngle = 35;
+	}
+	else if (leftCalfAngle < 0)
+	{
+		leftCalfAngle = 0;
+	}
+
+	if (rightThighAngle >= 150 || rightThighAngle <= 30)
+	{
+		direction *= -1;
+	}
+
 }

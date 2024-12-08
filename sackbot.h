@@ -1,14 +1,18 @@
 class Sackbot {
 public:
 	void drawRobot();
+	void drawBody();
+	void drawHead();
 	void drawLeftArm();
 	void drawRightArm();
 	void drawLeftLeg();
 	void drawRightLeg();
 	void walkMotion();
+	void rotateCannon();
 	void position(float xPos, float yPos, float zPos);
 	void scaleRobot(float scaleX, float scaleY, float scaleZ);
 	void robotVelocity(float vx, float vy, float vz);
+	void loadTexture(const char* filename);
 	void move();
 	float currentX() const {
 		return xPos;
@@ -27,7 +31,7 @@ public:
 
 	//check if the sackbot should shoot
 	bool shouldShoot() {
-		if (timeSinceLastShot >= shootInterval) {
+		if (timeSinceLastShot >= shootInterval && !isFalling) {
 			timeSinceLastShot = 0.0f; //reset the timer
 			return true;
 		}
@@ -41,12 +45,46 @@ public:
 		return shootInterval;
 	}
 
+	bool isFallComplete() const { 
+		return fallComplete; 
+	}
+
+	void fallAnimation() {
+		isFalling = true;
+		fallRotation = 0.0f;
+		fallComplete = false;
+	}
+
+	void stopWalkAnimation() {
+		isWalking = false;
+	}
+
+	bool isCurrentlyFalling() const {
+		return isFalling;
+	}
+
+	void updateFallAnimation() {
+		if (isFalling) {
+			fallRotation += fallSpeed;
+			yPos -= 0.03 * fallSpeed;
+			if (fallRotation >= 90.0f) {
+				fallComplete = true;
+			}
+		}
+	}
+
 private:
 	float xPos, yPos, zPos;
 	float scaleX, scaleY, scaleZ;
 	float vx, vy, vz;
 	float timeSinceLastShot = 0.0f; //time tracker for shooting
 	float shootInterval = 2.5f;     //interval at which this sackbot shoots
+	bool isFalling = false;
+	bool fallComplete = false;
+	bool isWalking = true;
+	float fallRotation = 0.0f;
+	float fallSpeed = 2.0f;
+	GLuint texture;
 	
 	// Control Robot body rotation on base
 	float robotAngle = 0.0;
@@ -61,4 +99,6 @@ private:
 	float leftThighAngle = 90, leftCalfAngle = 0, rightThighAngle = 90, rightCalfAngle = 0;
 
 	int direction = 1;
+
+	float cannonRotation = -2.0f;
 };

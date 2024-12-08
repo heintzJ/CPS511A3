@@ -1,9 +1,13 @@
+#define STB_IMAGE_IMPLEMENTATION
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <GL/glew.h>
 #include <gl/glut.h>
 #include "sackbot.h"
+#include "stb_image.h"
 
 bool cannonRotation = false;
 bool walking = false;
@@ -54,16 +58,6 @@ float cannonAngle = 0.0;
 //Control leg angles of both thigh and calf
 float leftThighAngle = 90, leftCalfAngle = 0, rightThighAngle = 90, rightCalfAngle = 0;
 
-void rotateCannon(int param);
-void walkAnimation(int param);
-void drawBody();
-void drawHead();
-void drawLeftArm();
-void drawRightArm();
-void drawLeftLeg();
-void drawRightLeg();
-void drawRightLeg();
-
 void Sackbot::drawRobot()
 {
 	glPushMatrix();
@@ -71,32 +65,82 @@ void Sackbot::drawRobot()
 	glTranslatef(xPos, yPos, zPos);
 	glScalef(scaleX, scaleY, scaleZ);
 
-	progressWalk(); //used to get the bot walking
+	if (isFalling) {
+		// Apply fall rotation around X axis (falling forward)
+		glRotatef(fallRotation, 1.0f, 0.0f, 0.0f);
+	}
+
 	drawBody();
 	drawHead();
 	drawLeftArm();
 	drawRightArm();
 	drawLeftLeg();
 	drawRightLeg();
+	if (isWalking) {
+		walkMotion(); //used to get the bot walking
+	}
+	rotateCannon();
 
 	glPopMatrix();
 }
 
 
-void drawBody()
+void Sackbot::drawBody()
 {
-	glMaterialfv(GL_FRONT, GL_AMBIENT, robot_mat_ambient);
-	glMaterialfv(GL_FRONT, GL_SPECULAR, robot_mat_specular);
-	glMaterialfv(GL_FRONT, GL_DIFFUSE, robot_mat_diffuse);
-	glMaterialfv(GL_FRONT, GL_SHININESS, robot_mat_shininess);
 
 	glPushMatrix();
-	glScalef(robotBodyWidth, robotBodyLength, robotBodyDepth);
-	glutSolidCube(1.0);
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	glBegin(GL_QUADS);
+	// front
+	glNormal3f(0.0f, 0.0f, 1.0f);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-robotBodyWidth / 2, -robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(robotBodyWidth / 2, -robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(robotBodyWidth / 2, robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-robotBodyWidth / 2, robotBodyLength / 2, robotBodyDepth / 2);
+
+	// back
+	glNormal3f(0.0f, 0.0f, -1.0f);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-robotBodyWidth / 2, -robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-robotBodyWidth / 2, robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(robotBodyWidth / 2, robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(robotBodyWidth / 2, -robotBodyLength / 2, -robotBodyDepth / 2);
+
+	// top
+	glNormal3f(0.0f, 1.0f, 0.0f);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-robotBodyWidth / 2, robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-robotBodyWidth / 2, robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(robotBodyWidth / 2, robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(robotBodyWidth / 2, robotBodyLength / 2, -robotBodyDepth / 2);
+
+	// bottom
+	glNormal3f(0.0f, -1.0f, 0.0f);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-robotBodyWidth / 2, -robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(robotBodyWidth / 2, -robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(robotBodyWidth / 2, -robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-robotBodyWidth / 2, -robotBodyLength / 2, robotBodyDepth / 2);
+
+	// right
+	glNormal3f(1.0f, 0.0f, 0.0f);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(robotBodyWidth / 2, -robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(robotBodyWidth / 2, robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(robotBodyWidth / 2, robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(robotBodyWidth / 2, -robotBodyLength / 2, robotBodyDepth / 2);
+
+	// left
+	glNormal3f(-1.0f, 0.0f, 0.0f);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-robotBodyWidth / 2, -robotBodyLength / 2, -robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-robotBodyWidth / 2, -robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-robotBodyWidth / 2, robotBodyLength / 2, robotBodyDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-robotBodyWidth / 2, robotBodyLength / 2, -robotBodyDepth / 2);
+	glEnd();
+	glDisable(GL_TEXTURE_2D);
 	glPopMatrix();
 }
 
-void drawHead()
+void Sackbot::drawHead()
 {
 	// Set robot material properties per body part. Can have seperate material properties for each part
 	glMaterialfv(GL_FRONT, GL_AMBIENT, robot_mat_ambient);
@@ -108,11 +152,55 @@ void drawHead()
 	// Position head with respect to parent (body)
 	glTranslatef(0, 0.5 * robotBodyLength + 0.5 * headLength, 0); // this will be done last
 
-	// Build Head
-	glPushMatrix();
-	glScalef(headWidth, headLength, headDepth);
-	glutSolidCube(1.0);
-	glPopMatrix();
+	glEnable(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+	glBegin(GL_QUADS);
+	// front
+	glNormal3f(0.0f, 0.0f, 1.0f);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-headWidth / 2, -headLength / 2, headDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(headWidth / 2, -headLength / 2, headDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(headWidth / 2, headLength / 2, headDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-headWidth / 2, headLength / 2, headDepth / 2);
+
+	// back
+	glNormal3f(0.0f, 0.0f, -1.0f);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-headWidth / 2, -headLength / 2, -headDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-headWidth / 2, headLength / 2, -headDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(headWidth / 2, headLength / 2, -headDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(headWidth / 2, -headLength / 2, -headDepth / 2);
+
+	// top
+	glNormal3f(0.0f, 1.0f, 0.0f);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-headWidth / 2, headLength / 2, -headDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-headWidth / 2, headLength / 2, headDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(headWidth / 2, headLength / 2, headDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(headWidth / 2, headLength / 2, -headDepth / 2);
+
+	// bottom
+	glNormal3f(0.0f, -1.0f, 0.0f);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-headWidth / 2, -headLength / 2, -headDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(headWidth / 2, -headLength / 2, -headDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(headWidth / 2, -headLength / 2, headDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-headWidth / 2, -headLength / 2, headDepth / 2);
+
+	// right
+	glNormal3f(1.0f, 0.0f, 0.0f);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(headWidth / 2, -headLength / 2, -headDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(headWidth / 2, headLength / 2, -headDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(headWidth / 2, headLength / 2, headDepth / 2);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(headWidth / 2, -headLength / 2, headDepth / 2);
+
+	// left
+	glNormal3f(-1.0f, 0.0f, 0.0f);
+	glTexCoord2f(0.0f, 0.0f); glVertex3f(-headWidth / 2, -headLength / 2, -headDepth / 2);
+	glTexCoord2f(1.0f, 0.0f); glVertex3f(-headWidth / 2, -headLength / 2, headDepth / 2);
+	glTexCoord2f(1.0f, 1.0f); glVertex3f(-headWidth / 2, headLength / 2, headDepth / 2);
+	glTexCoord2f(0.0f, 1.0f); glVertex3f(-headWidth / 2, headLength / 2, -headDepth / 2);
+	glEnd();
+
+	glDisable(GL_TEXTURE_2D);
 
 	// make the chin/beard thing
 	glMaterialfv(GL_FRONT, GL_DIFFUSE, robotJoint_mat_diffuse);
@@ -242,7 +330,7 @@ void Sackbot::drawRightArm()
 
 	// build upper arm
 	glPushMatrix();
-	glRotatef(shoulderAngle, 1.0, -0.5, 0.0); // Rotate to make it vertical
+	glRotatef(shoulderAngle - 40, 1.0, 0.0, 0.0);
 	gluCylinder(quadric, 0.8 * legRadius, 0.8 * legRadius, 0.4 * upperArmLength, 30, 1);
 	gluDisk(quadric, 0, 0.8 * legRadius, 30, 1); // disk at the top
 	glTranslatef(0, 0, 0.5 * upperArmLength); // move disk to the bottom
@@ -250,7 +338,7 @@ void Sackbot::drawRightArm()
 
 	// build lower arm
 	glPushMatrix();
-	glRotatef(elbowAngle, 1.0, 0.0, 0.0); // Rotate to make it vertical
+	glRotatef(elbowAngle - 40, 1.0, 0.0, 0.0);
 	gluCylinder(quadric, 0.8 * legRadius, 0.8 * legRadius, lowerArmLength, 30, 1);
 	gluDisk(quadric, 0, 0.8 * legRadius, 30, 1); // top
 	glTranslatef(0, 0, 0.5 * upperArmLength);
@@ -453,26 +541,13 @@ void Sackbot::move() {
 	zPos += vz;
 }
 
-void rotateCannon(int param)
+void Sackbot::rotateCannon()
 {
-	if (cannonRotation)
-	{
-		cannonAngle -= 2.0;
-		glutPostRedisplay();
-		glutTimerFunc(10, rotateCannon, 0);
-	}
+	cannonAngle -= 5.0;
 }
 
-
-
-//---------
-//
-//
-//New walking function (testing needs to be done)
 void Sackbot::walkMotion()
 {
-	static int direction = 1;
-
 	rightThighAngle += 6.0 * direction;
 	leftThighAngle -= 6.0 * direction;
 
@@ -501,4 +576,27 @@ void Sackbot::walkMotion()
 		direction *= -1;
 	}
 
+}
+
+void Sackbot::loadTexture(const char* filename) {
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	int width, height, nrChannels;
+	unsigned char* data = stbi_load(filename, &width, &height, &nrChannels, 0);
+
+	if (data) {
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+	else {
+		printf("Failed to load texture: %s\n", filename);
+	}
+
+	stbi_image_free(data);
 }

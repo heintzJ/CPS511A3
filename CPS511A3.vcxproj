@@ -27,6 +27,7 @@
     <ClInclude Include="..\meshViewer\surfaceModeller.h" />
     <ClInclude Include="bullet.h" />
     <ClInclude Include="sackbot.h" />
+    <ClInclude Include="stb_image.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

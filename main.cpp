@@ -155,6 +155,7 @@ Vector3D cameraUp = { 0.0, 1.0, 0.0 };
 float cannonX = 0.0f;
 float cannonY = -2.0f;
 float cannonZ = 27.0f;
+float cannonSpinAngle = 0.0f;
 
 Assimp::Importer importer;
 
@@ -226,10 +227,18 @@ void display3D()
 
 	glPushMatrix();
 	glTranslatef(cannonX, cannonY, cannonZ);
+	if (cameraLocked)
+	{
+		glRotatef(cannonSpinAngle, 0.0f, 1.0f, 0.0f);
+	}
 	glScalef(0.66f, 0.66f, 0.66f);
-	glRotatef(90, 0.0f, 1.0f, 0.0f);
-	glRotatef(cameraYaw, 0.0f, 1.0f, 0.0f);
-	glRotatef(cameraPitch, 1.0f, 0.0f, 0.0f);
+	glRotatef(-90, 0.0f, 1.0f, 0.0f);
+
+	if (!cameraLocked)
+	{
+		glRotatef(-cameraYaw, 0.0f, 1.0f, 0.0f);
+		glRotatef(cameraPitch, 1.0f, 0.0f, 0.0f);
+	}
 	glRotatef(-70, 1.0f, 0.0f, 0.0f);
 	
 	loadModel();
@@ -239,6 +248,7 @@ void display3D()
 	for (auto& sackbot : sackbots)
 	{
 		sackbot.drawRobot();
+		sackbot.updateFallAnimation();
 	}
 	for (auto& bullet : bullets)
 	{
@@ -339,6 +349,8 @@ void loadModel()
 void spawnSackbot()
 {
 	Sackbot sackbot;
+	// load texture
+	sackbot.loadTexture("Textures/oak_veneer_01_diff_1k.jpg");
 	// get a random number between -10 and 10
 	std::random_device seed;
 	std::mt19937 gen{ seed() };
@@ -351,8 +363,6 @@ void spawnSackbot()
 	sackbot.robotVelocity(0.0f, 0.0f, 0.1f);
 	sackbot.scaleRobot(0.5f, 0.5f, 0.5f);
 	sackbots.push_back(sackbot);
-	std::cout << "Spawned sackbot at (" << x << " " << y << " " << z << ")" << std::endl;
-
 }
 
 float spawnInterval = 2.0f;
@@ -425,7 +435,7 @@ void bulletHandler()
 void createBullet()
 {
 	Bullet bullet;
-	float bulletSpeed = 1.0f;
+	float bulletSpeed = 1.5f;
 
 	// calculate the direction vector
 	float dirX = cos(cameraYaw / 180.0f * M_PI) * cos(cameraPitch / 180.0f * M_PI);
@@ -450,6 +460,8 @@ void createBullet()
 	// this will angle the bullet correctly when it is fired
 	bullet.setBulletOrientation(cameraYaw, cameraPitch);
 
+	bullet.scaleBullet(1.0f, 1.0f, 1.0f);
+
 	bullets.push_back(bullet);
 }
 
@@ -470,7 +482,10 @@ void createEnemyBullet(Sackbot& bot)
 	Bullet bullet;
 	float bulletSpeed = 1.0f;
 
-	float offset = 2.0f;
+	// translate bullet to the cannon's position
+	float bulletOffsetX = -1.5f;
+	float bulletOffsetY = -0.5f;
+	float bulletOffsetZ = 0.5f;
 
 	//get current coordinate values of the current sackbot
 	float botX = bot.currentX();
@@ -489,10 +504,10 @@ void createEnemyBullet(Sackbot& bot)
 		float dirY = sin(bulletRandPitch / 180.0f * M_PI);
 		float dirZ = sin(bulletRandYaw / 180.0f * M_PI) * cos(bulletRandPitch / 180.0f * M_PI);
 
-		//set the bullet's initial position at the position of the current bot
-		float x = botX + dirX * offset;
-		float y = botY + dirY * offset;
-		float z = botZ + dirZ * offset;
+		float x = botX + dirX + bulletOffsetX;
+		float y = botY + dirY + bulletOffsetY;
+		float z = botZ + dirZ + bulletOffsetZ;
+
 		bullet.position(x, y, z);
 
 		//set the bullet's velocity to aim at the cannon
@@ -505,9 +520,9 @@ void createEnemyBullet(Sackbot& bot)
 	else
 	{
 		//calculate direction to cannon
-		float dirX = cannonX - botX;
-		float dirY = cannonY - botY;
-		float dirZ = cannonZ - botZ;
+		float dirX = cannonX - (botX + bulletOffsetX);
+		float dirY = cannonY - (botY + bulletOffsetY);
+		float dirZ = cannonZ - (botZ + bulletOffsetZ);
 
 		//normalize the direction vector (did not use function to better access the variables)
 		float magnitude = sqrt(dirX * dirX + dirY * dirY + dirZ * dirZ);
@@ -515,10 +530,10 @@ void createEnemyBullet(Sackbot& bot)
 		dirY /= magnitude;
 		dirZ /= magnitude;
 
-		//set the bullet's initial position at the position of the current sackbot
-		float x = botX + dirX * offset;
-		float y = botY + dirY * offset;
-		float z = botZ + dirZ * offset;
+		float x = botX + dirX + bulletOffsetX;
+		float y = botY + dirY + bulletOffsetY;
+		float z = botZ + dirZ + bulletOffsetZ;
+
 		bullet.position(x, y, z);
 
 		//set the bullet's velocity to aim at the cannon
@@ -529,6 +544,7 @@ void createEnemyBullet(Sackbot& bot)
 		float pitch = asin(dirY) * 180.0f / M_PI;
 		bullet.setBulletOrientation(yaw, pitch);
 	}
+	bullet.scaleBullet(0.5f, 0.5f, 0.5f);
 	//add the bullet to the vector
 	enemyBullets.push_back(bullet);
 
@@ -555,28 +571,49 @@ bool collidedCannon(Bullet& bullet)
 	return dist < 1.0f;
 }
 
+void destroySackbot(Sackbot& sackbot)
+{
+	sackbot.stopWalkAnimation();
+	sackbot.fallAnimation();
+}
+
 // spawn a sack bot every 16ms
 void gameLoop(int value) {
+	if (cameraLocked) {
+		cannonSpinAngle += 5.0f;
+		cannonY += 0.05f;
+	}
+
 	sackbotHandler();
 	bulletHandler();
 
 	// always check for colliding bullets and sackbots
 	for (size_t i = 0; i < sackbots.size(); ) {
-        bool removed = false;
-        for (size_t j = 0; j < bullets.size(); ) {
-            if (collided(sackbots[i], bullets[j])) {
-                sackbots.erase(sackbots.begin() + i);
-                bullets.erase(bullets.begin() + j);
-                removed = true;
-                break;
-            } else {
-                ++j;
-            }
-        }
-        
-        if (!removed) {
-            ++i;
-        }
+        bool shouldRemove = false;
+
+		if (sackbots[i].isFallComplete()) {
+			shouldRemove = true;
+		}
+		else if (!sackbots[i].isCurrentlyFalling()) {
+			for (size_t j = 0; j < bullets.size(); ) {
+				if (collided(sackbots[i], bullets[j])) {
+					bullets.erase(bullets.begin() + j);
+					destroySackbot(sackbots[i]);
+					break;
+				}
+				else {
+					++j;
+				}
+			}
+			++i;
+		}
+		else {
+			++i;
+		}
+
+		if (shouldRemove) {
+			sackbots.erase(sackbots.begin() + i);
+		}
     }
 
 	//check for bullets collding with cannon (will need testing)
@@ -703,14 +740,24 @@ void keyboardHandler3D(unsigned char key, int x, int y)
 {
 	switch (key)
 	{
+	case ' ':
+		if (!cameraLocked)  // Keep the same camera lock check
+		{
+			createBullet();
+		}
+		break;
 	case 'q':
 		exit(0);
 		break;
 	case 'Q':
 		exit(0);
 		break;
-	case 'b':
-		cameraLocked = true;
+	case 'r':
+		sackbots.clear();
+		bullets.clear();
+		enemyBullets.clear();
+		cameraLocked = false;
+		break;
 	}
 	glutPostRedisplay();
 }
@@ -730,13 +777,6 @@ void mouseButtonHandler3D(int button, int state, int x, int y)
 	lastMouseY = y;
 	switch (button)
 	{
-	case GLUT_LEFT_BUTTON:
-		if (state == GLUT_DOWN)
-		{
-			createBullet();
-			glutPostRedisplay();
-		}
-		break;
 	default:
 		break;
 	}

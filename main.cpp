@@ -62,16 +62,6 @@ GLfloat light_diffuse1[] = { 1.0, 1.0, 1.0, 1.0 };
 GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };
 GLfloat model_ambient[] = { 0.5, 0.5, 0.5, 1.0 };
 
-//
-// Surface of Revolution consists of vertices and quads
-//
-// Set up lighting/shading and material properties for surface of revolution
-GLfloat quadMat_ambient[] = { 0.0, 0.0, 0.0, 1.0 };
-GLfloat quadMat_specular[] = { 0.45, 0.55, 0.45, 1.0 };
-GLfloat quadMat_diffuse[] = { 0.1, 0.35, 0.1, 1.0 };
-GLfloat quadMat_shininess[] = { 10.0 };
-
-// Quads and Vertices of the surface of revolution
 typedef struct Vertex
 {
 	GLdouble x, y, z;
@@ -388,12 +378,14 @@ void sackbotHandler()
 		if (sackbot.shouldShoot()) {
 			createEnemyBullet(sackbot); //pass the sackbot to the shooting function
 		}
+
+		if (sackbot.currentZ() > 23.0f) { cameraLocked = true; }
 	}
 
 	// remove robots that pass the camera
 	sackbots.erase(
 		std::remove_if(sackbots.begin(), sackbots.end(), [](Sackbot& sackbot) {
-			return sackbot.currentZ() > 20.0f;
+			return sackbot.currentZ() > 25.0f;
 			}),
 		sackbots.end()
 	);
@@ -465,10 +457,7 @@ void createBullet()
 	bullets.push_back(bullet);
 }
 
-//------------------------
-//
-// 
-//will need more work and testing
+// spawn bullets from the sackbots
 void createEnemyBullet(Sackbot& bot)
 {
 	//used to generate a random yaw and pitch value
@@ -476,7 +465,7 @@ void createEnemyBullet(Sackbot& bot)
 	std::mt19937 gen{ seed() };
 	std::uniform_int_distribution<> randYaw{ 70, 130 }; //used to get a random yaw value
 	std::uniform_int_distribution<> randPitch{ -5, 10 }; //used to get a random pitch value
-	static size_t i = 0;
+	static size_t i = 1;
 
 	//initialize bullet
 	Bullet bullet;
@@ -757,36 +746,17 @@ void keyboardHandler3D(unsigned char key, int x, int y)
 		bullets.clear();
 		enemyBullets.clear();
 		cameraLocked = false;
+		cannonY = -2.0f;
+		cannonSpinAngle = 0.0f;
 		break;
 	}
 	glutPostRedisplay();
-}
-
-int currentButton;
-
-void mouseButtonHandler3D(int button, int state, int x, int y)
-{
-	// don't let bullets be shot if camera is locked
-	if (cameraLocked)
-	{
-		return;
-	}
-
-	currentButton = button;
-	lastMouseX = x;
-	lastMouseY = y;
-	switch (button)
-	{
-	default:
-		break;
-	}
 }
 
 int main(int argc, char* argv[])
 {
 	glutInit(&argc, (char**)argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
-	glutInitWindowSize(glutWindowWidth, glutWindowHeight);
 
 	// The 3D Window
 	window3D = glutCreateWindow("Sackbot Attack");
@@ -796,7 +766,6 @@ int main(int argc, char* argv[])
 	glutReshapeFunc(reshape3D);
 	glutKeyboardFunc(keyboardHandler3D);
 	glutPassiveMotionFunc(mouseMotionHandler2D);
-	glutMouseFunc(mouseButtonHandler3D);
 	glutSetCursor(GLUT_CURSOR_NONE);
 	glutWarpPointer(400, 300);
 	// Initialize the 3D system

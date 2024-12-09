@@ -8,7 +8,9 @@ This is our final product for CPS511 Assignment 3 by Jack Heintz and Aelmar Gewa
 - Collision detection (and subsequent breakdown) for both the robots and the cannon
 - Mouse control for the cannon's aim
 - Used a custom mesh from assignment 2 for the cannon
+- Animation for when a robot or the cannon gets hit
+- Some texture mapping for the robot
 
 **What We Have Not Completed**
-- Texture mapping for all the models
-- Animation for a when robot or cannon get hit
+- Shaders
+- Textures for the cannon and world

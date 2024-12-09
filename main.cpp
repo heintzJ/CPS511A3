@@ -62,6 +62,35 @@ GLfloat light_diffuse1[] = { 1.0, 1.0, 1.0, 1.0 };
 GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };
 GLfloat model_ambient[] = { 0.5, 0.5, 0.5, 1.0 };
 
+unsigned int VAOid;
+unsigned int VBOid;
+unsigned int IBOid;
+
+bool firstMouse = true;
+
+GLdouble fov = 80.0;
+
+int lastMouseX;
+int lastMouseY;
+
+GLdouble eyeX = 0.0, eyeY = 0.0, eyeZ = 30.0;
+GLdouble radius = eyeZ;
+GLdouble zNear = 0.1, zFar = 60.0;
+float cameraYaw = -90.0f;
+float cameraPitch = 0.0f;
+bool cameraLocked = false;
+
+Vector3D cameraPos = { eyeX, eyeY, eyeZ };
+Vector3D cameraFront = { 0.0, 0.0, -1.0 };
+Vector3D cameraUp = { 0.0, 1.0, 0.0 };
+
+float cannonX = 0.0f;
+float cannonY = -2.0f;
+float cannonZ = 27.0f;
+float cannonSpinAngle = 0.0f;
+
+Assimp::Importer importer;
+
 typedef struct Vertex
 {
 	GLdouble x, y, z;
@@ -120,37 +149,72 @@ private:
 	unsigned int VAOid, VBOid, IBOid;
 };
 
-unsigned int VAOid;
-unsigned int VBOid;
-unsigned int IBOid;
-
-bool firstMouse = true;
-
-GLdouble fov = 80.0;
-
-int lastMouseX;
-int lastMouseY;
-
-GLdouble eyeX = 0.0, eyeY = 0.0, eyeZ = 30.0;
-GLdouble radius = eyeZ;
-GLdouble zNear = 0.1, zFar = 60.0;
-float cameraYaw = -90.0f;
-float cameraPitch = 0.0f;
-bool cameraLocked = false;
-
-Vector3D cameraPos = { eyeX, eyeY, eyeZ };
-Vector3D cameraFront = { 0.0, 0.0, -1.0 };
-Vector3D cameraUp = { 0.0, 1.0, 0.0 };
-
-float cannonX = 0.0f;
-float cannonY = -2.0f;
-float cannonZ = 27.0f;
-float cannonSpinAngle = 0.0f;
-
-Assimp::Importer importer;
-
-void loadModel();
 Mesh* loadedMesh = nullptr;
+
+void loadModel()
+{
+	const aiScene* scene = importer.ReadFile("./ExportedMeshes/object.obj",
+		aiProcess_CalcTangentSpace |
+		aiProcess_Triangulate |
+		aiProcess_JoinIdenticalVertices |
+		aiProcess_SortByPType);
+
+	// load the mesh. We only have one mesh and it is in index 0
+	aiMesh* mesh = scene->mMeshes[0];
+
+	std::vector<Vertex> vertices;
+	std::vector<unsigned int> indices;
+
+	// get data for vertices and normals
+	for (int i = 0; i < mesh->mNumVertices; i++) {
+		Vertex vertex;
+		Vector3D vector;
+		vertex.x = mesh->mVertices[i].x;
+		vertex.y = mesh->mVertices[i].y;
+		vertex.z = mesh->mVertices[i].z;
+
+		vector.x = mesh->mNormals[i].x;
+		vector.y = mesh->mNormals[i].y;
+		vector.z = mesh->mNormals[i].z;
+		vertex.normal = vector;
+
+		vertices.push_back(vertex);
+	}
+
+	// get index data
+	for (int i = 0; i < mesh->mNumFaces; i++) {
+		aiFace face = mesh->mFaces[i];
+		for (int j = 0; j < face.mNumIndices; j++) {
+			indices.push_back(face.mIndices[j]);
+		}
+	}
+
+	// get material data
+	if (mesh->mMaterialIndex >= 0 && scene->mMaterials) {
+		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+		aiColor3D ambient(0.0f, 0.0f, 0.0f);
+		aiColor3D diffuse(0.0f, 0.0f, 0.0f);
+		aiColor3D specular(0.0f, 0.0f, 0.0f);
+		float shininess;
+
+		material->Get(AI_MATKEY_COLOR_AMBIENT, ambient);
+		material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
+		material->Get(AI_MATKEY_COLOR_SPECULAR, specular);
+		material->Get(AI_MATKEY_SHININESS, shininess);
+
+		GLfloat objectMat_ambient[] = { ambient.r, ambient.g, ambient.b, 1.0f };
+		GLfloat objectMat_diffuse[] = { diffuse.r, diffuse.g, diffuse.b, 1.0f };
+		GLfloat objectMat_specular[] = { specular.r, specular.g, specular.b, 1.0f };
+		GLfloat objectMat_shininess[] = { shininess };
+
+		glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, objectMat_ambient);
+		glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, objectMat_diffuse);
+		glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, objectMat_specular);
+		glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, objectMat_shininess);
+	}
+
+	loadedMesh = new Mesh(vertices, indices);
+}
 
 void init3DSurfaceWindow()
 {
@@ -267,71 +331,6 @@ void drawGround()
 	glVertex3f(22.0f, -4.0f, -30.0f);
 	glEnd();
 	glPopMatrix();
-}
-
-void loadModel()
-{
-	const aiScene* scene = importer.ReadFile("./ExportedMeshes/object.obj",
-		aiProcess_CalcTangentSpace |
-		aiProcess_Triangulate |
-		aiProcess_JoinIdenticalVertices |
-		aiProcess_SortByPType);
-	
-	// load the mesh. We only have one mesh and it is in index 0
-	aiMesh* mesh = scene->mMeshes[0];
-
-	std::vector<Vertex> vertices;
-	std::vector<unsigned int> indices;
-
-	// get data for vertices and normals
-	for (int i = 0; i < mesh->mNumVertices; i++) {
-		Vertex vertex;
-		Vector3D vector;
-		vertex.x = mesh->mVertices[i].x;
-		vertex.y = mesh->mVertices[i].y;
-		vertex.z = mesh->mVertices[i].z;
-
-		vector.x = mesh->mNormals[i].x;
-		vector.y = mesh->mNormals[i].y;
-		vector.z = mesh->mNormals[i].z;
-		vertex.normal = vector;
-
-		vertices.push_back(vertex);
-	}
-	
-	// get index data
-	for (int i = 0; i < mesh->mNumFaces; i++) {
-		aiFace face = mesh->mFaces[i];
-		for (int j = 0; j < face.mNumIndices; j++) { 
-			indices.push_back(face.mIndices[j]);
-		}
-	}
-
-	// get material data
-	if (mesh->mMaterialIndex >= 0 && scene->mMaterials) {
-		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-		aiColor3D ambient(0.0f, 0.0f, 0.0f);
-		aiColor3D diffuse(0.0f, 0.0f, 0.0f);
-		aiColor3D specular(0.0f, 0.0f, 0.0f);
-		float shininess;
-
-		material->Get(AI_MATKEY_COLOR_AMBIENT, ambient);
-		material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
-		material->Get(AI_MATKEY_COLOR_SPECULAR, specular);
-		material->Get(AI_MATKEY_SHININESS, shininess);
-
-		GLfloat objectMat_ambient[] = { ambient.r, ambient.g, ambient.b, 1.0f };
-		GLfloat objectMat_diffuse[] = { diffuse.r, diffuse.g, diffuse.b, 1.0f };
-		GLfloat objectMat_specular[] = { specular.r, specular.g, specular.b, 1.0f };
-		GLfloat objectMat_shininess[] = { shininess };
-
-		glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, objectMat_ambient);
-		glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, objectMat_diffuse);
-		glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, objectMat_specular);
-		glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, objectMat_shininess);
-	}
-
-	loadedMesh = new Mesh(vertices, indices);
 }
 
 // this will initialize the variables needed by a sackbot object
@@ -605,7 +604,7 @@ void gameLoop(int value) {
 		}
     }
 
-	//check for bullets collding with cannon (will need testing)
+	// check for bullets collding with cannon
 	for (size_t i = 0; i < enemyBullets.size(); i++)
 	{
 		if (collidedCannon(enemyBullets[i]))
@@ -681,7 +680,7 @@ Vector3D normalize(Vector3D a)
 	normalized.z = a.z / norm;
 	return normalized;
 }
-void mouseMotionHandler2D(int xMouse, int yMouse)
+void mouseMotionHandler(int xMouse, int yMouse)
 {
 	// camera will be locked if cannon is destroyed, so don't process mouse movement
 	if (cameraLocked)
@@ -725,7 +724,7 @@ void mouseMotionHandler2D(int xMouse, int yMouse)
 	glutPostRedisplay();
 }
 
-void keyboardHandler3D(unsigned char key, int x, int y)
+void keyboardHandler(unsigned char key, int x, int y)
 {
 	switch (key)
 	{
@@ -764,8 +763,8 @@ int main(int argc, char* argv[])
 	glewInit();
 	glutDisplayFunc(display3D);
 	glutReshapeFunc(reshape3D);
-	glutKeyboardFunc(keyboardHandler3D);
-	glutPassiveMotionFunc(mouseMotionHandler2D);
+	glutKeyboardFunc(keyboardHandler);
+	glutPassiveMotionFunc(mouseMotionHandler);
 	glutSetCursor(GLUT_CURSOR_NONE);
 	glutWarpPointer(400, 300);
 	// Initialize the 3D system
